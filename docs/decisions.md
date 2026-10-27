@@ -192,3 +192,38 @@ Short records of non-obvious choices: what we chose, why, and what we gave up. N
 ### D44 — Analyst rationale on the labels
 **Chose:** `labels.alert_dispositions.human_rationale` (synthetic: one note per planted scenario, no RNG draws).
 **Why:** "both rationales side by side" is what lets an SME adjudicate. At Ally map it from the case-management disposition narrative (or `NULL AS human_rationale` if none exists — the scorecard still works).
+
+### D45 — SAR facts are computed, never written by the model
+**Chose:** a fact sheet built by SQL and arithmetic (every transaction, completed vs attempted vs total, subtotals by counterparty/day/account/channel); the drafter may state only what's on it or in the case file.
+**Why:** wrong totals and mismatched counts are classic kickbacks, and arithmetic is where language models slip. With the harness doing the adding, any amount not on the sheet is almost certainly wrong, so QC can treat it as an ERROR instead of a soft warning (contrast D33).
+**Gave up:** narratives can't cite a figure the sheet didn't anticipate (e.g., a 3-day subtotal). Add the grouping to the sheet if analysts need it.
+
+### D46 — The narrative is submitted in fixed sections; the closing is boilerplate
+**Chose:** `submit_sar_narrative` has five required sections (introduction, subject, activity, basis_for_suspicion, investigation); the harness assembles them and appends a fixed records-retention paragraph.
+**Why:** completeness becomes a structural check, not a judgement call, the same split as `submit_decision` (model owns prose, harness owns structure). Boilerplate the model never writes can never be wrong.
+**Gave up:** free-form structure. Analysts edit the assembled text anyway.
+
+### D47 — Triage rationale is context for the drafter, not evidence for QC
+**Chose:** the triage decision is rendered separately (`triage_text`) and excluded from QC's grounding corpus.
+**Why:** if the triage model mis-stated an amount, a narrative repeating it would otherwise pass the grounding check. One model's output can't vouch for another's.
+
+### D48 — QC is rules first, model second; rules run on any narrative
+**Chose:** deterministic checks (`qc_facts.py`, `qc_language.py`) always run; the model reviewer is optional. `sar-qc` runs rules-only by default.
+**Why:** most kickback reasons are mechanical (name, account number, amount, date, typo, placeholder). Rules are free, instant, explainable to MRM, and give the same answer every time. They also work on analyst-written narratives today, with no drafter and no model approval needed.
+**Gave up:** general spelling/grammar coverage in rules-only mode (a curated misspelling list, not a dictionary). The model reviewer covers it.
+
+### D49 — Independent reviewer (maker/checker), and its output is checked too
+**Chose:** a separate call with its own prompt that never sees the drafter's notes; findings must quote the narrative exactly, or they're downgraded to WARNING; a malformed or missing review is `QC_INCOMPLETE`, never a pass.
+**Why:** a reviewer that shares the writer's reasoning shares its blind spots. A hallucinated finding shouldn't force a pointless redraft, and a reviewer that silently fails shouldn't look like a clean bill of health.
+
+### D50 — Known errors outrank an unknown review
+**Chose:** status order is rule/model ERRORs → `NEEDS_REVISION`, then incomplete review → `QC_INCOMPLETE`, then a model REVISE → `NEEDS_REVISION`, else `READY_FOR_REVIEW`.
+**Why:** if we already know the draft is wrong, that's more useful (and triggers a revision) than "we couldn't tell". A REVISE verdict without ERRORs is still honored, which is the conservative choice.
+
+### D51 — One bounded revision loop; every attempt logged
+**Chose:** QC ERRORs go back to the drafter as a numbered list in a fresh request (with the previous draft), at most `SAR_MAX_REVISIONS` (1) times. Each attempt is a new `sar_drafts` row, each finding a `sar_qc_findings` row.
+**Why:** this automates the kickback loop that analysts do by hand today, but bounded, so a stuck draft reaches a human instead of looping. Per-finding rows let us count kickback reasons by check and category, which is the metric this work is meant to move. A fresh request (not a continued conversation) keeps the revision prompt simple and identical on Bedrock.
+
+### D52 — No SAR without an escalation; nothing is filed
+**Chose:** `prepare_sar` refuses unless the alert's latest triage decision is ESCALATE (`--force` overrides for testing); the best status is `READY_FOR_REVIEW`.
+**Why:** project rule 6: the model recommends, a human decides. At Ally the gate becomes the analyst's SAR decision in case management, not the agent's triage call.

@@ -32,7 +32,7 @@ from src.tools import SUBMIT_DECISION, Toolbox, ToolCall
 
 DECIDED = "DECIDED"
 REVIEW_REQUIRED = "REVIEW_REQUIRED"
-_HAND_OFF_STOPS = {
+HAND_OFF_STOPS = {
     "refusal": "model declined to answer (refusal)",
     "max_tokens": "model response was cut off (max_tokens)",
     "model_context_window_exceeded": "conversation exceeded the model's context window",
@@ -84,8 +84,8 @@ def investigate(alert: Alert, pack: EvidencePack, llm: ChatModel, toolbox: Toolb
                               max_tokens=config.agent_max_tokens)
         run.steps, stop = step, response.stop_reason or "unknown"
         run.stop_reasons.append(stop)
-        if stop in _HAND_OFF_STOPS:
-            return run.hand_off(messages, _HAND_OFF_STOPS[stop])
+        if stop in HAND_OFF_STOPS:
+            return run.hand_off(messages, HAND_OFF_STOPS[stop])
 
         # Append verbatim: content carries thinking blocks the next turn needs. Append-only.
         messages.append({"role": "assistant", "content": response.content})

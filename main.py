@@ -9,13 +9,15 @@
     python main.py triage [--limit N] [--all] [--live]   plan + cost estimate; --live runs it
     python main.py report [--run RUN_ID] [--save]   impact board for a run (default: latest)
     python main.py backtest [--run RUN_ID]          scorecard vs. analyst labels -> reports/scorecard.md
+    python main.py sar [ALERT_ID] [--live] [--force]  SAR narrative draft -> QC -> revise (dry run default)
+    python main.py sar-qc ALERT_ID FILE [--live]    QC any narrative file (rules only unless --live)
 """
 
 import argparse
 import sys
 
 from config import load_config
-from src.commands import inspection, run, setup
+from src.commands import inspection, run, sar, setup
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,6 +54,16 @@ def build_parser() -> argparse.ArgumentParser:
     bt = sub.add_parser("backtest", help="score agent decisions against analyst labels")
     bt.add_argument("--run", dest="run_id", default=None,
                     help="score only this run (default: latest decision per alert)")
+
+    sr = sub.add_parser("sar", help="draft + QC a SAR narrative for an escalated alert")
+    sr.add_argument("alert_id", nargs="?", help="alert id (default: latest escalation)")
+    sr.add_argument("--live", action="store_true", help="make real model calls")
+    sr.add_argument("--force", action="store_true", help="draft even if not escalated")
+
+    qc = sub.add_parser("sar-qc", help="QC a SAR narrative file against an alert's records")
+    qc.add_argument("alert_id", help="alert id the narrative is about")
+    qc.add_argument("file", help="text file holding the narrative")
+    qc.add_argument("--live", action="store_true", help="also run the model reviewer")
     return parser
 
 
@@ -68,6 +80,8 @@ def main() -> int:
         "triage": lambda: run.triage(config, args.limit, args.all, args.live),
         "report": lambda: run.report(config, args.run_id, args.save),
         "backtest": lambda: run.backtest(config, args.run_id),
+        "sar": lambda: sar.sar(config, args.alert_id, args.live, args.force),
+        "sar-qc": lambda: sar.sar_qc(config, args.alert_id, args.file, args.live),
     }
     return commands[args.command]()
 

@@ -14,6 +14,7 @@ Source of truth for what's built and what's next. Update the status line when a 
 | **M2 — The proof** | 8 | Backtest scorecard vs. human labels (and a vendor column) |
 | **M3 — At Ally** | 9 | Same code on Snowflake + Bedrock against a historical alert sample |
 | **M4 — Pilot** | 10 | Scheduled, monitored, documented for MRM |
+| **M5 — SAR assist** | 11–12 | Escalated alerts get a QC'd SAR narrative draft; any narrative can be QC'd before it goes up |
 
 ---
 
@@ -155,6 +156,34 @@ Source of truth for what's built and what's next. Update the status line when a 
 - Observability: per-alert trace (inputs, tool calls, outputs) persisted
 - MRM pack: design doc, data lineage, backtest results, monitoring plan, limitations
 - Human-in-the-loop controls: dismissal sampling rate, override capture
+
+## Block 11 — SAR narrative drafter ✅ (building blocks; live run pending)
+
+**Goal:** an escalated alert gets a first-draft SAR narrative an analyst can edit, written only from facts the harness computed. Design + rationale: [07-sar-narrative-and-qc.md](07-sar-narrative-and-qc.md).
+
+- `src/sar/facts.py` + `facts_render.py` + `queries.py` — **fact sheet**: subject, accounts involved, every flagged/blocked txn in the window (with account; cap 500), completed vs attempted vs total, subtotals by counterparty / day / account / channel. Triage rationale rendered separately (context, never evidence)
+- `src/sar/prompts.py` — `sar_prompt_v1` (drafter) and `sar_qc_prompt_v1` (reviewer), versioned apart from the triage prompt
+- `src/sar/schemas.py` — strict `submit_sar_narrative` (5 sections + `cited_txn_ids` + `drafting_notes`) and `submit_qc_review`
+- `src/sar/structured_call.py` — one request → one tool call; one nudge; refusal/cut-off → no answer (reuses `agent.HAND_OFF_STOPS`)
+- `src/sar/drafter.py` — section validation, fixed-order assembly, fixed closing paragraph (`SAR_RECORDS_OFFICE`)
+- `src/sar/pipeline.py` — `prepare_sar()`: requires an ESCALATE triage decision; draft → QC → revise ≤ `SAR_MAX_REVISIONS` → log every attempt
+- `src/ledger.py` — `agent.sar_drafts`, `agent.sar_qc_findings` (append-only, one transaction per attempt); `latest_decision()`
+- `main.py sar [ALERT_ID] [--live] [--force]` — dry run prints the fact sheet and call plan
+- Config: `SAR_MAX_REVISIONS` (1), `SAR_NARRATIVE_MAX_CHARS` (17000, confirm vs FinCEN spec), `SAR_NARRATIVE_MIN_CHARS` (800), `SAR_RECORDS_OFFICE`
+
+**Exit criteria:** fact-sheet totals equal the alert contract for all 60 alerts ✅; deterministic, label-free sheet ✅; drafter failures → `NO_DRAFT`, never a guess ✅; QC errors go back to the drafter and the loop respects its budget ✅; every attempt + finding logged ✅. **Remaining: live drafts on 5–10 escalated alerts — waiting for go-ahead on API calls.**
+
+## Block 12 — SAR QC ✅ (building blocks; live run pending)
+
+**Goal:** catch what gets a SAR kicked back (typos, wrong data, narrative not matching the data, poor quality) before a human sees it, on agent drafts *and* analyst-written narratives.
+
+- `src/sar/qc_facts.py` — data vs narrative: subject name present + fuzzy misspelling check, unknown account/customer/txn numbers, every amount and date grounded (ISO, US, and long formats), total + activity dates stated, stated counts match the records
+- `src/sar/qc_language.py` — language + mechanics: placeholders, legal conclusions, AI/system references, common misspellings, doubled words (ERROR); speculation, first person, vague quantities, alert IDs/rule codes, attachment references, amount format, punctuation, capitalization, run-on sentences, length (WARNING). Rule lists are plain data
+- `src/sar/qc_review.py` — independent model reviewer (maker/checker); misquoted excerpts downgraded; malformed review → `QC_INCOMPLETE`
+- `src/sar/qc.py` — `run_qc()`: rules, then optional reviewer → `READY_FOR_REVIEW` / `NEEDS_REVISION` / `QC_INCOMPLETE`
+- `main.py sar-qc ALERT_ID FILE [--live]` — QC any narrative file; rules only (free) unless `--live`
+
+**Exit criteria:** a correct narrative for each of the 60 alerts passes with zero errors (false-alarm guard) ✅; 13 planted kickback types each raise the expected ERROR, 7 style problems the expected WARNING ✅; findings deterministic ✅; reviewer output validated ✅. 51 new tests (254 total). **Remaining: live reviewer run; at Ally, backtest `sar-qc` against historical QC returns (catch rate by kickback reason).**
 
 ---
 

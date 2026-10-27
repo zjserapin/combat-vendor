@@ -26,7 +26,7 @@ An in-house **AI investigator for AML alert triage**, built as a proof of concep
 
 ## Key Files
 
-- `main.py` — thin CLI dispatch (`doctor`, `seed`, `queue`, `evidence`, `agent-sql`, `investigate`, `triage`, `report`, `backtest`); bodies in `src/commands/`
+- `main.py` — thin CLI dispatch (`doctor`, `seed`, `queue`, `evidence`, `agent-sql`, `investigate`, `triage`, `report`, `backtest`, `sar`, `sar-qc`); bodies in `src/commands/`
 - `config.py` — every setting and both provider swaps
 - `src/llm_client.py` — Claude client (Anthropic or Bedrock Mantle) + usage meter
 - `src/db.py` — DuckDB or Snowflake behind one `query()` helper + `transaction()`
@@ -39,6 +39,7 @@ An in-house **AI investigator for AML alert triage**, built as a proof of concep
 - `src/decision.py` — validator + routing policy (`finalize`); `src/grounding.py` — cited facts vs evidence
 - `src/triage.py` — runs the queue; `src/report/` — impact board (tag every number measured/policy/ASSUMPTION; no accuracy here)
 - `src/backtest/` — scorecard vs labels: hash split, metrics with 95% intervals, vendor column (stand-in locally); the only place accuracy is measured
+- `src/sar/` — SAR narrative drafting + QC (Blocks 11–12, `docs/07-sar-narrative-and-qc.md`): fact sheet (harness does all arithmetic), drafter, rule QC (`qc_facts.py`, `qc_language.py`), model reviewer, draft → QC → revise pipeline. Own prompt versions in `src/sar/prompts.py` (bump `SAR_PROMPT_VERSION` / `QC_PROMPT_VERSION` on any change). Drafts only: nothing is filed
 - `tests/fakes.py` — scripted model responses (real SDK types) — use these, never live calls, in tests
 - `src/synth/` — synthetic Cairn Bank generator (local-only; never ported)
 - `docs/` — concept brief, architecture, build plan, concepts, port guide, eval plan, decisions
@@ -56,6 +57,8 @@ uv run python main.py investigate [ALERT_ID]   # dry run (--live calls the model
 uv run python main.py triage                   # plan + cost estimate (--live: NOT until Zach allows)
 uv run python main.py report                   # impact board
 uv run python main.py backtest                 # scorecard vs labels -> reports/scorecard.md
+uv run python main.py sar [ALERT_ID]           # SAR fact sheet + plan (--live drafts: NOT until Zach allows)
+uv run python main.py sar-qc ALERT_ID FILE     # QC a narrative, rules only (--live adds the model reviewer)
 uv run pytest -q             # tests (no network)
 uv run ruff check .
 ```

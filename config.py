@@ -78,6 +78,12 @@ class Config:
     backtest_holdout_share: float  # share of labelled alerts held out (reported, never tuned on)
     backtest_split_salt: str  # changing it re-draws the split — do that only on purpose
 
+    # --- SAR drafting + QC ---
+    sar_max_revisions: int  # redrafts allowed after QC finds errors
+    sar_narrative_max_chars: int  # filing-system narrative limit (confirm current FinCEN spec)
+    sar_narrative_min_chars: int  # below this, QC warns the narrative is thin
+    sar_records_office: str  # named in the fixed closing paragraph
+
     @property
     def model_id(self) -> str:
         """The model id the active provider expects."""
@@ -146,4 +152,8 @@ def load_config() -> Config:
         manual_minutes_per_alert=float(_env("MANUAL_MINUTES_PER_ALERT", "45")),
         backtest_holdout_share=float(_env("BACKTEST_HOLDOUT_SHARE", "0.5")),
         backtest_split_salt=_env("BACKTEST_SPLIT_SALT", "split-v1"),
+        sar_max_revisions=int(_env("SAR_MAX_REVISIONS", "1")),
+        sar_narrative_max_chars=int(_env("SAR_NARRATIVE_MAX_CHARS", "17000")),
+        sar_narrative_min_chars=int(_env("SAR_NARRATIVE_MIN_CHARS", "800")),
+        sar_records_office=_env("SAR_RECORDS_OFFICE", "BSA/AML Investigations"),
     )

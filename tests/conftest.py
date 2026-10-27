@@ -34,3 +34,11 @@ def workspace(seeded, tmp_path):
     path = tmp_path / "workspace.duckdb"
     shutil.copy(seeded.duckdb_path, path)
     return replace(seeded, duckdb_path=path)
+
+
+@pytest.fixture(scope="module")
+def module_bank(seeded, tmp_path_factory):
+    """A private copy of the seeded bank shared by one test module (read-mostly tests)."""
+    path = tmp_path_factory.mktemp("module") / "module.duckdb"
+    shutil.copy(seeded.duckdb_path, path)
+    return replace(seeded, duckdb_path=path)

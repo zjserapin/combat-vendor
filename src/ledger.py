@@ -18,6 +18,7 @@ from src.db import Database
 
 if TYPE_CHECKING:
     from src.alert_queue import Alert
+    from src.sar.records import SarDraftRecord, SarFindingRecord
 
 DECISIONS = ("ESCALATE", "KYC_REVIEW", "DISMISS")
 REVIEW_REQUIRED = "REVIEW_REQUIRED"  # harness fallback: a human works it
@@ -39,6 +40,22 @@ AGENT_TABLES: dict[str, str] = {
         prompt_version VARCHAR, alerts_attempted INTEGER, alerts_decided INTEGER,
         alerts_review_required INTEGER, alerts_failed INTEGER, model_calls INTEGER,
         input_tokens BIGINT, output_tokens BIGINT, model_seconds DOUBLE""",
+    # One row per SAR draft attempt (a revision is a new row). Drafts only: nothing here
+    # is filed — an analyst edits, approves, and files outside this system.
+    "sar_drafts": """
+        draft_id VARCHAR, sar_run_id VARCHAR, alert_id VARCHAR, customer_id INTEGER,
+        attempt INTEGER, status VARCHAR, narrative VARCHAR, sections VARCHAR,
+        cited_txn_ids VARCHAR, drafting_notes VARCHAR, draft_problems VARCHAR,
+        facts_hash VARCHAR, evidence_hash VARCHAR, triage_run_id VARCHAR, model_id VARCHAR,
+        sar_prompt_version VARCHAR, qc_prompt_version VARCHAR, rule_errors INTEGER,
+        rule_warnings INTEGER, model_errors INTEGER, model_warnings INTEGER, qc_scores VARCHAR,
+        qc_summary VARCHAR, input_tokens INTEGER, output_tokens INTEGER, seconds DOUBLE,
+        created_at TIMESTAMP""",
+    # One row per QC finding, so kickback reasons can be counted by check and category.
+    "sar_qc_findings": """
+        draft_id VARCHAR, alert_id VARCHAR, attempt INTEGER, source VARCHAR, check_name VARCHAR,
+        severity VARCHAR, category VARCHAR, message VARCHAR, excerpt VARCHAR,
+        created_at TIMESTAMP""",
 }
 
 
@@ -142,6 +159,15 @@ def record_decision(db: Database, config: Config, record: DecisionRecord) -> Non
         _insert(db, f"{config.agent_schema}.case_memory", memory)
 
 
+def record_sar_draft(db: Database, config: Config, draft: SarDraftRecord,
+                     findings: list[SarFindingRecord]) -> None:
+    """Write one draft attempt and its QC findings in one transaction."""
+    with db.transaction():
+        _insert(db, f"{config.agent_schema}.sar_drafts", asdict(draft))
+        for finding in findings:
+            _insert(db, f"{config.agent_schema}.sar_qc_findings", asdict(finding))
+
+
 def start_run(db: Database, config: Config, model_id: str, prompt_version: str,
               run_id: str | None = None) -> str:
     """Open a run_log row and return its id."""
@@ -185,6 +211,18 @@ def latest_decisions(db: Database, config: Config) -> list[dict[str, Any]]:
         f"QUALIFY ROW_NUMBER() OVER (PARTITION BY alert_id ORDER BY decided_at DESC) = 1 "
         f"ORDER BY decided_at DESC"
     )
+
+
+def latest_decision(db: Database, config: Config, alert_id: str) -> dict[str, Any] | None:
+    """The current triage decision for one alert, or None if it was never triaged."""
+    rows = db.query(
+        f"SELECT alert_id, run_id, decision, proposed_decision, confidence, rationale, "
+        f"key_facts, next_action, evidence_hash, decided_at "
+        f"FROM {config.agent_schema}.decision_log WHERE alert_id = ? "
+        f"ORDER BY decided_at DESC LIMIT 1",
+        [alert_id],
+    )
+    return rows[0] if rows else None
 
 
 def recall_memory(db: Database, config: Config, customer_id: int, limit: int = 5) -> list[str]:

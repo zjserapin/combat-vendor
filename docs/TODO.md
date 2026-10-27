@@ -2,7 +2,7 @@
 
 Single source of truth for open work. The *how* lives in the linked docs; this is the *what*, in order.
 
-**Paused 2026-10-27.** Blocks 0–8 are code-complete and tested (203 tests, no network). Nothing has called the model yet: every live step below is waiting for a go-ahead on API spend.
+**Paused 2026-10-27.** Blocks 0–8 are code-complete and tested; SAR building blocks (11–12) added the same day (254 tests total, no network). Nothing has called the model yet: every live step below is waiting for a go-ahead on API spend.
 
 ---
 
@@ -63,6 +63,18 @@ How-to for every item: [04 Snowflake + Bedrock port guide](04-snowflake-port-gui
 - [ ] Consider a time-based split once there are months of history (D40)
 
 **Does not go to Ally:** `src/synth/`, the `seed` command, `data/`.
+
+## 2b. SAR drafting + QC — M5 (Blocks 11–12)
+
+Design: [07-sar-narrative-and-qc.md](07-sar-narrative-and-qc.md). Building blocks are code-complete (51 tests, no network).
+
+- [ ] **Rules-only QC on real narratives (no model, no approval needed):** `uv run python main.py sar-qc ALERT_ID narrative.txt`. Try it on a few sample narratives and note false alarms.
+- [ ] **Live draft on a few escalated alerts** (after the live triage run): `uv run python main.py sar --live`. Read every draft, the findings, and `drafting_notes`.
+- [ ] Tune `sar_prompt_v1` / `sar_qc_prompt_v1`, bumping the versions on every change.
+- [ ] **AML SME decisions:** narrative date format (ISO vs MM/DD/YYYY); whether attempted (blocked) amounts count in "total amount involved"; continuing-activity wording when a prior SAR exists; whether internal customer/account numbers belong in the narrative; current FinCEN narrative length limit (`SAR_NARRATIVE_MAX_CHARS`).
+- [ ] **Backtest QC at Ally:** collect historical QC/QA returns (original narrative + kickback reason), run `sar-qc` on the originals, and report catch rate by reason. Add misses to `MISSPELLINGS` / `PATTERN_RULES` (they're plain data).
+- [ ] Reviewer UI: draft + findings + fact sheet side by side; capture analyst edits (edit distance as a quality metric).
+- [ ] Kickback dashboard from `agent.sar_qc_findings` (findings by check/category, first-draft vs revised).
 
 ## 3. Pilot hardening — M4 (Block 10)
 
