@@ -1,0 +1,30 @@
+[project]
+name = "combat-vendor"
+version = "0.1.0"
+description = "In-house AI investigator for AML alert triage (Cairn Bank POC)"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=2.3.0",
+    "duckdb>=2.0.0",
+    "python-dotenv>=1.2.4",
+]
+
+[project.optional-dependencies]
+# Only needed at Ally: Snowflake as the data layer, Bedrock as the model endpoint.
+ally = [
+    "snowflake-connector-python>=3.12",
+    "boto3>=1.35",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100

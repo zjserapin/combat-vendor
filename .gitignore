@@ -1,0 +1,18 @@
+# secrets
+.env
+# generated reports
+reports/
+# local data (always regenerable with `python main.py seed`)
+data/
+*.duckdb
+*.duckdb.wal
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# os / editors
+.DS_Store
+.idea/
+.vscode/
